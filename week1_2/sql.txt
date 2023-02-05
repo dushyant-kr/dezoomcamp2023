@@ -1,0 +1,38 @@
+# POSTGRESQL Queries
+
+
+# Getting the location names instead of id's
+SELECT 
+	tpep_pickup_datetime,
+	tpep_dropoff_datetime,
+	DATE_TRUNC('DAY',tpep_dropoff_datetime),
+	CAST(tpep_dropoff_datetime AS DATE),
+	total_amount,
+	CONCAT(lpu."Borough", ' / ', lpu."Zone") AS "pickup_loc",
+	CONCAT(ldo."Borough", ' / ', ldo."Zone") AS "dropoff_loc"
+	
+FROM 
+	yellow_taxi_trips t
+	LEFT JOIN
+	zones lpu
+	ON t."PULocationID" = lpu."LocationID"
+	LEFT JOIN
+	zones ldo
+	ON t."DOLocationID" = ldo."LocationID"
+LIMIT 100;
+
+
+# Exploring Missing values in zone name
+SELECT 
+	tpep_pickup_datetime,
+	tpep_dropoff_datetime,
+	"PULocationID",
+	"DOLocationID"
+FROM
+	yellow_taxi_trips t
+WHERE
+	"PULocationID" NOT IN  (SELECT "LocationID" FROM zones)
+LIMIT 100;
+
+
+

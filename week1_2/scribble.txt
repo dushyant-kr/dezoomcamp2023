@@ -1,0 +1,155 @@
+# stopping and removing all containers
+docker ps -aq | xargs docker stop | xargs docker rm
+
+# mapping a folder on the host machine to a folder on the container, as the container is ephemeral
+# and we need to persist the changes in database every time we run the docker image
+# also known as mounting
+
+
+
+#  -v C:\Users\dushy\Desktop\globe\work\projects\dezoomcamp2023\week1.2\ny_taxi_postgres_data:/var/lib/postgresql/data \
+
+#worked
+1: -v "/C:/Users/dushy/Desktop/globe/work/projects/dezoomcamp2023/week1_2/ny_taxi_postgres_data:/var/lib/postgresql/data" \
+
+#fail
+2: -v "//C/Users/dushy/Desktop/globe/work/projects/dezoomcamp2023/week1_2/ny_taxi_postgres_data:/var/lib/postgresql/data" \
+
+#fail
+3: -v "//C/Users/dushy/Desktop/globe/work/projects/dezoomcamp2023/week1_2/ny_taxi_postgres_data:/var/lib/postgresql/data" \
+
+#fail
+4: -v "//C/Users/dushy/Desktop/globe/work/projects/dezoomcamp2023/week1_2/ny_taxi_postgres_data:/var/lib/postgresql/data" \
+
+
+winpty docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi" \
+    -v "/C:/Users/dushy/Desktop/globe/work/projects/dezoomcamp2023/week1_2/ny_taxi_postgres_data:/var/lib/postgresql/data" \
+    -p 5432:5432 \
+    postgres:13
+
+
+#dataset link
+https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page : PARQUET FORMAT
+https://github.com/DataTalksClub/nyc-tlc-data CSV FORMAT
+
+#data dictionary
+https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf
+
+# using wget we can save the csv from a url (did not work)
+
+# quickly data investigation bash commands
+
+# using an iterator we will insert the data using python from local csv file to postgres table
+# we create the DDL (schema) before the insertion using python package
+
+# perform qc check on the number of rows transferred after the completion of data ingestion process
+
+# Download web based GUI pgadmin to interact with Postgres database sessions
+
+# we will use a docker image for pgadmin
+
+docker run -it \
+    -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+    -e PGADMIN_DEFAULT_PASSWORD="root" \
+    -p 8080:80 \
+    dpage/pgadmin4
+
+
+# when we try to connect to postgres db using the pgadmin, we are not able to create a new connection
+# as the pgadmin searches for postgres inside its own containers network
+
+# so we will create a common network i.e. 2 containers inside the same network 
+
+docker network create pg-network
+
+pg-network is the network name
+
+we will update the docker run commands of pgadmin and postgres by adding the network details
+so that the pgadmin can discover postgres db
+
+winpty docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi" \
+    -v "/C:/Users/dushy/Desktop/globe/work/projects/dezoomcamp2023/week1_2/ny_taxi_postgres_data:/var/lib/postgresql/data" \
+    -p 5431:5432 \
+    --network=pg-network \
+    --name pg-database \
+    postgres:13
+
+# the name tag is important as the pgadmin will identify postgres using this as hostname inside the common network
+
+# since we stopped the postgres db container, lets start it again to see if the local storage mount is working in order
+# performed quality check in jupyter notebook
+
+winpty docker run -it \
+    -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+    -e PGADMIN_DEFAULT_PASSWORD="root" \
+    -p 8080:80 \
+    --network=pg-network \
+    --name pgadmin \
+    dpage/pgadmin4
+
+# while configuring the new server (create new server or register new server)
+use hostname as pg-database, port as 5432 and admin pwd of postgres
+
+# next we will use docker compose.yml file to combine the 2 separate docker run commands in one single file
+
+# we will create an ingest_data.py (convert notebook to function)
+gdrive link ="https://drive.google.com/file/d/1d1fosfwMHqmZNfU0hHCED0hVohRBnnhV/view?usp=share_link"
+
+# link to the csv file
+URL="https://www.dropbox.com/s/yo678gxl4tp4og4/yellow_tripdata_2021-01.csv?dl=1" \
+python ingest_data.py \
+    --user=root \
+    --password=root \
+    --host=localhost \
+    --port=5431 \
+    --db=ny_taxi \
+    --table_name=yellow_taxi_trips \
+    --url=${URL}
+
+
+# create the python image with the ingest_data pipeline code
+winpty docker build -t taxi_ingest:v01 .
+
+# run the image, followed by the command line arguments
+
+URL="https://www.dropbox.com/s/yo678gxl4tp4og4/yellow_tripdata_2021-01.csv?dl=1"
+
+winpty docker run -it \
+    --network=pg-network \
+    taxi_ingest:v01 \
+        --user=root \
+        --password=root \
+        --host=pg-database \
+        --port=5432 \
+        --db=ny_taxi \
+        --table_name=yellow_taxi_trips \
+        --url=${URL}
+
+********IMPORTANT*******
+# changing the host from localhost to pg-database
+
+# in reallife deployment we will replace the pg-database with a URL to an external database like bigquery
+
+# and instead of running a docker we may use a kubernetes job
+
+#using docker compose
+# puts configuration of multiple containers in one file
+
+
+# how to persist configuration for pgadmin
+
+#after starting the postgres and pgadmin in one container using docker compose, we ran the python ingest_data.py 
+# code module to ingest taxi data into the database
+
+# Subsequently we ingested the zones table in database
+
+# Next we will run some SQL queries
+
+# Query 1: we want to see the actual location of the district in the taxi data instead of PULocationID (pick up)
+# and DOLocationID (drop off)
